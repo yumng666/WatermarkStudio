@@ -1,5 +1,8 @@
 # 水印工坊 · 批量水印与 GIF 转换
 
+[![Release](https://img.shields.io/github/v/release/yumng666/WatermarkStudio?label=release)](https://github.com/yumng666/WatermarkStudio/releases/latest)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-4c8dff)](https://github.com/yumng666/WatermarkStudio/releases/latest)
+
 一个本地运行的 Windows 桌面工具：批量给视频/图片加水印，批量把视频转成 GIF。界面中文，全部处理在本机完成，不联网。
 
 ![icon](assets/icon.png)
@@ -37,7 +40,7 @@
 
 ## 直接用（免安装）
 
-到 [Releases](https://github.com/yumng666/WatermarkStudio/releases/latest) 下载 `水印工坊-1.0.0-win64.zip`（约 53 MB），解压后双击文件夹里的 `WatermarkStudio.exe`。
+到 [Releases](https://github.com/yumng666/WatermarkStudio/releases/latest) 下载 `WatermarkStudio-1.0.0-win64.zip`（约 53 MB），解压后双击文件夹里的 `WatermarkStudio.exe`。
 
 程序会按顺序找 ffmpeg：环境变量 `MTOOL_FFMPEG` → **exe 同级目录下的 `ffmpeg\bin\ffmpeg.exe`** → 系统 PATH → 常见安装路径。
 想做成完全绿色版，把 ffmpeg 文件夹放到 exe 旁边即可：
