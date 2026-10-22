@@ -77,7 +77,7 @@ python main.py
 ## 目录结构
 
 ```
-media-watermark-gif/
+WatermarkStudio/
 ├─ main.py              入口
 ├─ 启动.bat             双击启动
 ├─ mtool/
