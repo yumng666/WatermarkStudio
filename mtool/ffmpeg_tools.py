@@ -58,6 +58,22 @@ def find_tools() -> tuple[str | None, str | None]:
     return None, None
 
 
+def is_bundled(ffmpeg_path: str) -> bool:
+    """ffmpeg 是否随程序一起分发（位于 exe 目录或 _MEIPASS 内）。"""
+    try:
+        target = Path(ffmpeg_path).resolve()
+    except Exception:
+        return False
+    roots = [Path(sys.executable).resolve().parent]
+    meipass = getattr(sys, "_MEIPASS", "")
+    if meipass:
+        roots.append(Path(meipass).resolve())
+    for root in roots:
+        if root == target.parent or root in target.parents:
+            return True
+    return False
+
+
 @dataclass
 class MediaInfo:
     path: str

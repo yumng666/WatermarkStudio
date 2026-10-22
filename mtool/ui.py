@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 
 from . import config as cfgmod
 from . import gif as gifmod
-from .ffmpeg_tools import find_tools, probe
+from .ffmpeg_tools import find_tools, is_bundled, probe
 from .watermark import POSITIONS, POS_LABEL, WatermarkSpec, VIDEO_EXTS
 from .worker import BatchWorker
 
@@ -507,6 +507,10 @@ class MainWindow(QMainWindow):
         self.mode_buttons["video_wm"].setChecked(True)
 
         self.env_chip = QLabel("ffmpeg 检测中")
+        if self.ffmpeg:
+            self.env_chip.setToolTip(
+                ("内置 ffmpeg：" if is_bundled(self.ffmpeg) else "系统 ffmpeg：") + self.ffmpeg
+            )
         self.env_chip.setObjectName("Chip")
         h.addSpacing(6)
         h.addWidget(self.env_chip)

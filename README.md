@@ -63,9 +63,9 @@
 
 | 文件 | 平台 | 大小 | 说明 |
 |---|---|---|---|
-| `WatermarkStudio-1.0.0-win64.zip` | Windows 10/11 x64 | ~53 MB | 免安装，解压即用 |
+| `WatermarkStudio-1.0.0-win64.zip` | Windows 10/11 x64 | ~127 MB | 免安装，**内置 ffmpeg**，解压即用 |
 
-**三步上手**：
+**三步上手**（不需要另外装 ffmpeg）：
 
 1. 解压 zip，得到 `水印工坊` 文件夹
 2. 双击里面的 `WatermarkStudio.exe`
@@ -73,29 +73,37 @@
 
 > 首次运行 Windows 可能提示「未知发布者」，点「更多信息 → 仍要运行」即可（未做代码签名）。
 
-### ffmpeg 依赖
+### 关于 ffmpeg（已内置）
 
-程序按顺序查找，找到第一个就用：
-
-1. 环境变量 `MTOOL_FFMPEG`
-2. **exe 同级目录下的 `ffmpeg\bin\ffmpeg.exe`**
-3. 系统 PATH
-4. 常见安装路径（`C:\ffmpeg\bin`、`C:\Program Files\ffmpeg\bin` 等）
-
-想做成完全绿色版，把 ffmpeg 文件夹放到 exe 旁边：
+发布包内已经带好 ffmpeg 与 ffprobe，**下载解压就能直接用**：
 
 ```
 水印工坊/
 ├─ WatermarkStudio.exe
 ├─ _internal/
-└─ ffmpeg/bin/ffmpeg.exe   ← 可选，放这里就自带 ffmpeg
+└─ ffmpeg/
+   ├─ bin/ffmpeg.exe  ffprobe.exe  + 运行时 DLL
+   ├─ LICENSE.txt     （GPL v3 全文）
+   └─ README.txt      （版本与来源）
 ```
 
-推荐用 [BtbN](https://github.com/BtbN/FFmpeg-Builds/releases) 或 [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) 的完整构建。顶部右侧会显示「ffmpeg 已就绪 / 未找到 ffmpeg」。
+如果系统里已有 ffmpeg，程序仍按以下顺序查找，**第一个命中的优先**：
+
+1. 环境变量 `MTOOL_FFMPEG`（想指定某个版本时用）
+2. **内置目录 `ffmpeg/bin/ffmpeg.exe`**
+3. 系统 PATH
+4. 常见安装路径（`C:/ffmpeg/bin`、`C:/Program Files/ffmpeg/bin` 等）
+
+顶部右侧的「ffmpeg 已就绪」标签，鼠标悬停会显示当前用的是哪一份（内置 / 系统）。
+不需要内置版本时，删掉 `ffmpeg` 目录即可，程序会回退到系统 PATH。
+
+> 内置的 ffmpeg 来自 [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds)（`win64-gpl-shared`，
+> 含 libx264，GPL v3）。它作为独立可执行程序随本工具分发，程序只通过命令行调用、不修改其代码；
+> 许可全文与源码地址见包内 `ffmpeg/LICENSE.txt` 与 `ffmpeg/README.txt`。
 
 ## 从源码运行
 
-需要 Python 3.10+ 与 ffmpeg。
+需要 Python 3.10+ 与 ffmpeg（源码目录不含内置 ffmpeg，装到系统 PATH 或设置 `MTOOL_FFMPEG`）。
 
 ```bat
 pip install -r requirements.txt
@@ -117,6 +125,7 @@ WatermarkStudio/
 │  ├─ gif.py            视频转 GIF 参数构建
 │  ├─ ffmpeg_tools.py   ffmpeg 定位 / ffprobe 探测 / 带进度执行
 │  └─ config.py         配置持久化
+├─ ffmpeg/              仅发布包内（内置 ffmpeg，不入库）
 ├─ assets/              图标
 ├─ shots/               README 截图
 └─ tests/smoke_test.py  端到端自检
