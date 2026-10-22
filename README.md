@@ -37,7 +37,7 @@
 
 ## 直接用（免安装）
 
-下载 `release/水印工坊-1.0.0-win64.zip`，解压后双击文件夹里的 `WatermarkStudio.exe`。
+到 [Releases](https://github.com/yumng666/WatermarkStudio/releases/latest) 下载 `水印工坊-1.0.0-win64.zip`（约 53 MB），解压后双击文件夹里的 `WatermarkStudio.exe`。
 
 程序会按顺序找 ffmpeg：环境变量 `MTOOL_FFMPEG` → **exe 同级目录下的 `ffmpeg\bin\ffmpeg.exe`** → 系统 PATH → 常见安装路径。
 想做成完全绿色版，把 ffmpeg 文件夹放到 exe 旁边即可：
