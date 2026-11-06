@@ -13,11 +13,11 @@
 ![downloads](https://img.shields.io/github/downloads/yumng666/WatermarkStudio/total?style=flat-square&color=059669)
 ![stars](https://img.shields.io/github/stars/yumng666/WatermarkStudio?style=flat-square&color=f59e0b)
 
-📥 [下载客户端](https://github.com/yumng666/WatermarkStudio/releases/latest) · 💬 [反馈问题](https://github.com/yumng666/WatermarkStudio/issues)
+📥 [下载客户端](https://github.com/yumng666/WatermarkStudio/releases/latest) · 📝 [更新日志](CHANGELOG.md) · 💬 [反馈问题](https://github.com/yumng666/WatermarkStudio/issues)
 
 </div>
 
-**v1.0.0**：视频水印、图片水印、视频转 GIF 三合一。视频与图片**共用同一套水印参数**，
+**v1.0.1**：视频水印、图片水印、视频转 GIF 三合一。视频与图片**共用同一套水印参数**，
 输出到九宫格任意位置，尺寸按画面比例计算，4K 与 720p 混批观感一致。
 
 <img src="shots/video-watermark.png" width="1000" alt="视频加水印界面">
@@ -64,7 +64,7 @@
 
 | 文件 | 平台 | 大小 | 说明 |
 |---|---|---|---|
-| `WatermarkStudio-1.0.0-win64.zip` | Windows 10/11 x64 | ~127 MB | 免安装，**内置 ffmpeg**，解压即用 |
+| `WatermarkStudio-1.0.1-win64.zip` | Windows 10/11 x64 | ~127 MB | 免安装，**内置 ffmpeg**，解压即用 |
 
 **三步上手**（不需要另外装 ffmpeg）：
 

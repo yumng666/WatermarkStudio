@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget,
 )
 
+from . import __version__
 from . import config as cfgmod
 from . import gif as gifmod
 from .ffmpeg_tools import find_tools, is_bundled, probe
@@ -472,7 +473,7 @@ class MainWindow(QMainWindow):
         self.worker: BatchWorker | None = None
         self.mode = "image_wm"
 
-        self.setWindowTitle("水印工坊 · 批量水印与 GIF 转换")
+        self.setWindowTitle(f"水印工坊 {__version__} · 批量水印与 GIF 转换")
         icon = resource_path("assets/icon.png")
         if icon.exists():
             self.setWindowIcon(QIcon(str(icon)))
