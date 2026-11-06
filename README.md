@@ -38,7 +38,8 @@
 ### 图片批量加水印
 
 - 与视频**同一套设置面板**，参数完全一致
-- JPEG 用 `quality=keep` 保存，避免二次压缩；PNG/WebP/TIFF 保留透明通道
+- 可选**输出格式**：保持原格式 / 统一 JPG / 统一 PNG
+- JPEG 以 **95 质量 + 4:4:4 无色度抽样**保存，彩色边缘不发虚；PNG/WebP/TIFF 保留透明通道
 - 保留 EXIF / ICC / DPI，自动处理手机照片方向
 
 ### 视频批量转 GIF
@@ -145,6 +146,8 @@ python tests\smoke_test.py
 - **帧率保持**：输出不加 `-r`，显式 `-fps_mode passthrough`，避免 VFR（手机拍摄）素材被强制转成固定帧率。
 - **中文文字水印**：不用 ffmpeg 的 `drawtext`（多行对齐与转义容易出问题），改用 Pillow 先把文字渲染成紧贴文字的透明 PNG 再 overlay。视频与图片走同一套图层代码，两端输出完全一致。
 - **水印尺寸自适应**：字号按画面高度百分比，图片水印宽度与边距按短边百分比，同一参数在 4K 和 720p 上观感一致。
+- **图片输出不是"越压越小"**：源是 JPEG 时按 95 质量 + 4:4:4 重编码（实测非水印区 PSNR 47~49 dB，肉眼无损）；
+  源是 PNG 时输出 PNG 无损。强制 JPG 只会给无损源引入有损压缩，不会让边缘更锐利。
 - **配置位置**：`%APPDATA%\MediaWatermarkTool\config.json`，三个模式分别对应 `output_dir_video` / `output_dir_image` / `output_dir_gif`。删掉该文件即恢复默认参数。
 
 ## 已知限制

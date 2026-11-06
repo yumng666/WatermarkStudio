@@ -261,6 +261,22 @@ class WatermarkPanel(QWidget):
         box_p = QGroupBox("参数")
         vp = QVBoxLayout(box_p)
         vp.setSpacing(6)
+
+        self.fmt_row = QWidget()
+        hf = QHBoxLayout(self.fmt_row)
+        hf.setContentsMargins(0, 0, 0, 0)
+        hf.setSpacing(10)
+        lab_f = QLabel("输出格式")
+        lab_f.setFixedWidth(64)
+        self.fmt_combo = QComboBox()
+        self.fmt_combo.addItem("保持原格式", "keep")
+        self.fmt_combo.addItem("统一 JPG", "jpg")
+        self.fmt_combo.addItem("统一 PNG", "png")
+        self.fmt_combo.setToolTip("仅对图片加水印生效；JPG 为 95 质量、4:4:4 无色度抽样")
+        hf.addWidget(lab_f)
+        hf.addWidget(self.fmt_combo, 1)
+        vp.addWidget(self.fmt_row)
+
         self.s_scale, self.l_scale, w1 = self._slider("水印大小", 2, 40, 12, "% 短边")
         self.s_font, self.l_font, w2 = self._slider("字号", 1, 15, 4, "% 高度")
         self.s_opacity, self.l_opacity, w3 = self._slider("不透明度", 0, 100, 80, "%")
@@ -331,6 +347,12 @@ class WatermarkPanel(QWidget):
     def set_text(self, text: str):
         self.text_edit.setPlainText(text)
 
+    def output_format(self) -> str:
+        return self.fmt_combo.currentData() or "keep"
+
+    def set_image_mode(self, on: bool):
+        self.fmt_row.setEnabled(on)
+
     def spec(self) -> WatermarkSpec:
         return WatermarkSpec(
             kind="text" if self.btn_text.isChecked() else "image",
@@ -360,6 +382,8 @@ class WatermarkPanel(QWidget):
         self.s_opacity.setValue(int(cfg.get("opacity", 80)))
         self.s_margin.setValue(int(cfg.get("margin_pct", 3)))
         self.color_btn.setText(cfg.get("color", "#FFFFFF"))
+        idx = self.fmt_combo.findData(cfg.get("image_format", "keep"))
+        self.fmt_combo.setCurrentIndex(idx if idx >= 0 else 0)
         self._sync_type()
 
     def store(self, cfg: dict):
@@ -368,6 +392,7 @@ class WatermarkPanel(QWidget):
             "wm_type": s.kind, "text": s.text, "watermark_image": s.image,
             "position": s.position, "scale_pct": s.scale_pct, "font_pct": s.font_pct,
             "opacity": s.opacity, "margin_pct": s.margin_pct, "color": s.color,
+            "image_format": self.output_format(),
         })
 
 
@@ -687,6 +712,7 @@ class MainWindow(QMainWindow):
         self.mode_buttons[self.mode].setChecked(True)
         is_gif = self.mode == "gif"
         self.pages.setCurrentIndex(1 if is_gif else 0)
+        self.wm_panel.set_image_mode(self.mode == "image_wm")
         removed = self._prune_queue()
         self._update_queue_info(f"已移除 {removed} 个不适用于当前模式的文件" if removed else "")
         if is_gif:
@@ -842,7 +868,7 @@ class MainWindow(QMainWindow):
 
         self.worker = BatchWorker(
             self.mode, files, out_dir, spec, self.gif_panel.value(),
-            self.ffmpeg, self.ffprobe, self,
+            self.ffmpeg, self.ffprobe, self, image_format=self.wm_panel.output_format(),
         )
         self.worker.file_started.connect(self._on_file_start)
         self.worker.progress.connect(lambda p: self.progress.setValue(int(p * 100)))

@@ -207,7 +207,9 @@ def output_path(src: str, out_dir: str, suffix: str = "_wm") -> str:
 
 # ---------------------------------------------------------------- 图片
 
-def process_image(src: str, out_dir: str, spec: WatermarkSpec, suffix: str = "_wm") -> str:
+def process_image(src: str, out_dir: str, spec: WatermarkSpec, suffix: str = "_wm",
+                  out_format: str = "keep") -> str:
+    """out_format: keep（跟随源格式）/ jpg / png。"""
     from PIL import Image, ImageOps
 
     img = Image.open(src)
@@ -221,9 +223,13 @@ def process_image(src: str, out_dir: str, spec: WatermarkSpec, suffix: str = "_w
     base.alpha_composite(layer, xy)
 
     p = Path(src)
-    ext = p.suffix.lower()
-    if ext not in (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"):
+    src_ext = p.suffix.lower()
+    if out_format == "jpg":
+        ext = ".jpg"
+    elif out_format == "png":
         ext = ".png"
+    else:
+        ext = src_ext if src_ext in (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff") else ".png"
     dst = str(Path(out_dir) / f"{p.stem}{suffix}{ext}")
 
     kw: dict = {}
@@ -235,11 +241,14 @@ def process_image(src: str, out_dir: str, spec: WatermarkSpec, suffix: str = "_w
         kw["dpi"] = dpi
 
     if ext in (".jpg", ".jpeg"):
-        out = base.convert("RGB")
-        try:
-            out.save(dst, "JPEG", quality="keep", subsampling="keep", **kw)
-        except Exception:
-            out.save(dst, "JPEG", quality=95, subsampling=0, **kw)
+        # JPEG 不支持透明：先合成到白底
+        if base.getchannel("A").getextrema()[0] < 255:
+            flat = Image.new("RGB", base.size, (255, 255, 255))
+            flat.paste(base, mask=base.getchannel("A"))
+        else:
+            flat = base.convert("RGB")
+        # 95 + 4:4:4：不做色度抽样，避免彩色边缘发虚/串色
+        flat.save(dst, "JPEG", quality=95, subsampling=0, **kw)
     elif ext == ".webp":
         base.save(dst, "WEBP", quality=95, method=4, **kw)
     elif ext in (".tif", ".tiff"):
@@ -247,7 +256,7 @@ def process_image(src: str, out_dir: str, spec: WatermarkSpec, suffix: str = "_w
     elif ext == ".bmp":
         base.convert("RGB").save(dst, "BMP")
     else:
-        base.save(dst, "PNG", **kw)
+        base.save(dst, "PNG", compress_level=6, **kw)
     return dst
 
 

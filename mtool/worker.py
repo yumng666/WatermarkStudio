@@ -22,13 +22,14 @@ class BatchWorker(QThread):
 
     def __init__(self, mode: str, files: list[str], out_dir: str,
                  spec: wm.WatermarkSpec, gif_percent: int,
-                 ffmpeg: str, ffprobe: str, parent=None):
+                 ffmpeg: str, ffprobe: str, parent=None, image_format: str = "keep"):
         super().__init__(parent)
         self.mode = mode
         self.files = list(files)
         self.out_dir = out_dir
         self.spec = spec
         self.gif_percent = gif_percent
+        self.image_format = image_format
         self.ffmpeg = ffmpeg
         self.ffprobe = ffprobe
         self.cancel_event = threading.Event()
@@ -49,7 +50,8 @@ class BatchWorker(QThread):
             self.file_started.emit(idx, Path(src).name)
             try:
                 if self.mode == "image_wm":
-                    dst = wm.process_image(src, self.out_dir, self.spec)
+                    dst = wm.process_image(src, self.out_dir, self.spec,
+                                           out_format=self.image_format)
                     self.progress.emit((idx + 1) / total)
                     self.file_done.emit(idx, True, f"完成 → {Path(dst).name}")
                     ok += 1

@@ -20,6 +20,7 @@ DEFAULTS: dict = {
     "margin_pct": 3,            # 边距 = 短边 * pct%
     "font_pct": 4,              # 文字水印字号 = 画面高 * pct%
     "color": "#FFFFFF",
+    "image_format": "keep",      # keep | jpg | png
     "gif_percent": 80,          # 100/90/80/70/60
     "last_input_dir": "",
     "open_after": True,
