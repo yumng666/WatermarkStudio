@@ -496,7 +496,7 @@ class MainWindow(QMainWindow):
         self.mode_group = QButtonGroup(self)
         self.mode_group.setExclusive(True)
         self.mode_buttons: dict[str, QPushButton] = {}
-        for key, label in (("video_wm", "视频加水印"), ("image_wm", "图片加水印"), ("gif", "视频转 GIF")):
+        for key, label in (("image_wm", "图片加水印"), ("video_wm", "视频加水印"), ("gif", "视频转 GIF")):
             b = QPushButton(label)
             b.setCheckable(True)
             b.setMinimumWidth(104)
