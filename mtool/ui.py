@@ -181,6 +181,9 @@ class FileQueue(QListWidget):
 
 
 class WatermarkPanel(QWidget):
+    NOTE_VIDEO = "输出保持原始分辨率、帧率与音轨；CRF 18 近无损编码，肉眼看不出画质差异。"
+    NOTE_IMAGE = "输出保持原始分辨率；JPG 以 95 质量 + 4:4:4 保存，PNG 无损。"
+
     def __init__(self, parent=None):
         super().__init__(parent)
         lay = QVBoxLayout(self)
@@ -286,10 +289,10 @@ class WatermarkPanel(QWidget):
         vp.addStretch(1)
         bottom.addWidget(box_p, 1)
         lay.addLayout(bottom)
-        note = QLabel("输出保持原始分辨率、帧率与音轨；CRF 18 近无损编码，肉眼看不出画质差异。")
-        note.setObjectName("Hint")
-        note.setWordWrap(True)
-        lay.addWidget(note)
+        self.note = QLabel(self.NOTE_VIDEO)
+        self.note.setObjectName("Hint")
+        self.note.setWordWrap(True)
+        lay.addWidget(self.note)
         lay.addStretch(1)
 
         self._sync_type()
@@ -352,6 +355,7 @@ class WatermarkPanel(QWidget):
 
     def set_image_mode(self, on: bool):
         self.fmt_row.setEnabled(on)
+        self.note.setText(self.NOTE_IMAGE if on else self.NOTE_VIDEO)
 
     def spec(self) -> WatermarkSpec:
         return WatermarkSpec(
@@ -466,7 +470,7 @@ class MainWindow(QMainWindow):
         self.cfg = cfgmod.load()
         self.ffmpeg, self.ffprobe = find_tools()
         self.worker: BatchWorker | None = None
-        self.mode = "video_wm"
+        self.mode = "image_wm"
 
         self.setWindowTitle("水印工坊 · 批量水印与 GIF 转换")
         icon = resource_path("assets/icon.png")
@@ -529,7 +533,7 @@ class MainWindow(QMainWindow):
             self.mode_group.addButton(b)
             self.mode_buttons[key] = b
             h.addWidget(b)
-        self.mode_buttons["video_wm"].setChecked(True)
+        self.mode_buttons["image_wm"].setChecked(True)
 
         self.env_chip = QLabel("ffmpeg 检测中")
         if self.ffmpeg:
