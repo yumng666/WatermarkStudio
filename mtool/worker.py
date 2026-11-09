@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import dataclasses
+import os
 import shutil
 import threading
 from pathlib import Path
@@ -22,7 +23,8 @@ class BatchWorker(QThread):
 
     def __init__(self, mode: str, files: list[str], out_dir: str,
                  spec: wm.WatermarkSpec, gif_percent: int,
-                 ffmpeg: str, ffprobe: str, parent=None, image_format: str = "keep"):
+                 ffmpeg: str, ffprobe: str, parent=None, image_format: str = "keep",
+                 roots: list[str] | None = None):
         super().__init__(parent)
         self.mode = mode
         self.files = list(files)
@@ -30,6 +32,7 @@ class BatchWorker(QThread):
         self.spec = spec
         self.gif_percent = gif_percent
         self.image_format = image_format
+        self.roots = [Path(r) for r in (roots or [])]
         self.ffmpeg = ffmpeg
         self.ffprobe = ffprobe
         self.cancel_event = threading.Event()
@@ -37,11 +40,66 @@ class BatchWorker(QThread):
     def cancel(self):
         self.cancel_event.set()
 
+    # ---------------------------------------------------------------- 目录映射
+    def _image_target(self, src: str) -> tuple[str, str]:
+        """图片输出位置。
+
+        来自拖入文件夹的文件：输出到 `<输出目录>/<文件夹名>/<相对路径>`，文件名保持原样；
+        散装文件：仍输出到输出目录根层，并加 `_wm` 后缀。
+        返回 (目标目录, 文件名后缀)。
+        """
+        p = Path(src)
+        best_root: Path | None = None
+        best_rel: Path | None = None
+        for r in self.roots:
+            try:
+                rel = p.parent.relative_to(r)
+            except ValueError:
+                continue
+            if best_root is None or len(r.parts) > len(best_root.parts):
+                best_root, best_rel = r, rel
+        if best_root is None or best_rel is None:
+            return self.out_dir, "_wm"
+        dest = Path(self.out_dir) / best_root.name / best_rel
+        if dest.resolve() == p.parent.resolve():
+            return str(dest), "_wm"      # 输出目录正好是源目录时避免覆盖原图
+        return str(dest), ""
+
+    def _prepare_tree(self):
+        """按输入文件夹的目录树预建输出目录（含空子文件夹）。
+
+        输出目录若位于输入目录内部，遍历时必须跳过，否则会无限嵌套。
+        """
+        out_res = Path(self.out_dir).resolve()
+
+        def under_out(p: Path) -> bool:
+            try:
+                rp = p.resolve()
+            except OSError:
+                return False
+            return rp == out_res or out_res in rp.parents
+
+        for r in self.roots:
+            base = Path(self.out_dir) / r.name
+            try:
+                for dirpath, dirnames, _files in os.walk(r):
+                    here = Path(dirpath)
+                    if under_out(here):
+                        dirnames[:] = []
+                        continue
+                    dirnames[:] = [d for d in dirnames if not under_out(here / d)]
+                    rel = here.relative_to(r)
+                    (base / rel).mkdir(parents=True, exist_ok=True)
+            except OSError as e:
+                self.log.emit(f"  跳过目录 {r}: {e}")
+
     # ---------------------------------------------------------------- run
     def run(self):
         ok = fail = 0
         total = len(self.files)
         Path(self.out_dir).mkdir(parents=True, exist_ok=True)
+        if self.mode == "image_wm" and self.roots:
+            self._prepare_tree()
 
         for idx, src in enumerate(self.files):
             if self.cancel_event.is_set():
@@ -50,7 +108,9 @@ class BatchWorker(QThread):
             self.file_started.emit(idx, Path(src).name)
             try:
                 if self.mode == "image_wm":
-                    dst = wm.process_image(src, self.out_dir, self.spec,
+                    dest, suffix = self._image_target(src)
+                    Path(dest).mkdir(parents=True, exist_ok=True)
+                    dst = wm.process_image(src, dest, self.spec, suffix=suffix,
                                            out_format=self.image_format)
                     self.progress.emit((idx + 1) / total)
                     self.file_done.emit(idx, True, f"完成 → {Path(dst).name}")

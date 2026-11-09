@@ -472,6 +472,7 @@ class MainWindow(QMainWindow):
         self.ffmpeg, self.ffprobe = find_tools()
         self.worker: BatchWorker | None = None
         self.mode = "image_wm"
+        self.folder_roots: list[str] = []   # 用户拖入/选择的文件夹（用于还原目录层级）
 
         self.setWindowTitle(f"水印工坊 {__version__} · 批量水印与 GIF 转换")
         icon = resource_path("assets/icon.png")
@@ -747,6 +748,9 @@ class MainWindow(QMainWindow):
         for raw in paths:
             p = Path(raw)
             if p.is_dir():
+                key = os.path.normcase(str(p.resolve()))
+                if key not in {os.path.normcase(str(Path(r).resolve())) for r in self.folder_roots}:
+                    self.folder_roots.append(str(p.resolve()))
                 found += [str(f) for f in sorted(p.rglob("*")) if f.suffix.lower() in exts]
             elif p.is_file() and p.suffix.lower() in exts:
                 found.append(str(p))
@@ -790,6 +794,7 @@ class MainWindow(QMainWindow):
 
     def _clear(self):
         self.queue.clear()
+        self.folder_roots.clear()
         self._update_queue_info()
 
     def _update_queue_info(self, extra: str = ""):
@@ -800,6 +805,8 @@ class MainWindow(QMainWindow):
         n = len(self.queue.paths())
         kind = {"video_wm": "视频", "image_wm": "图片", "gif": "视频"}[self.mode]
         text = f"共 {n} 个{kind}文件" if n else "拖入文件或文件夹，支持批量"
+        if n and self.folder_roots and self.mode == "image_wm":
+            text += f" · 保留 {len(self.folder_roots)} 个文件夹的目录结构"
         if extra:
             text += f" · {extra}"
         self.queue_info.setText(text)
@@ -871,9 +878,15 @@ class MainWindow(QMainWindow):
         for i in range(self.queue.count()):
             self.queue.item(i).setForeground(QColor("#d7dce6"))
 
+        norms = {os.path.normcase(str(Path(f).resolve())) for f in files}
+        active_roots = [
+            r for r in self.folder_roots
+            if any(os.path.normcase(n).startswith(os.path.normcase(str(Path(r))) + os.sep) for n in norms)
+        ]
         self.worker = BatchWorker(
             self.mode, files, out_dir, spec, self.gif_panel.value(),
             self.ffmpeg, self.ffprobe, self, image_format=self.wm_panel.output_format(),
+            roots=active_roots,
         )
         self.worker.file_started.connect(self._on_file_start)
         self.worker.progress.connect(lambda p: self.progress.setValue(int(p * 100)))
