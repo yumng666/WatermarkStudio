@@ -136,7 +136,8 @@ def image_layer(size: tuple[int, int], spec: WatermarkSpec):
     from PIL import Image
     if not spec.image or not Path(spec.image).exists():
         raise RuntimeError("水印图片不存在")
-    wm = Image.open(spec.image).convert("RGBA")
+    with Image.open(spec.image) as _im:
+        wm = _im.convert("RGBA")
     target_w = max(8, round(min(size) * spec.scale_pct / 100))
     ratio = target_w / wm.width
     wm = wm.resize((target_w, max(1, round(wm.height * ratio))), Image.LANCZOS)
@@ -212,12 +213,14 @@ def process_image(src: str, out_dir: str, spec: WatermarkSpec, suffix: str = "_w
     """out_format: keep（跟随源格式）/ jpg / png。"""
     from PIL import Image, ImageOps
 
-    img = Image.open(src)
-    exif = img.info.get("exif")
-    icc = img.info.get("icc_profile")
-    dpi = img.info.get("dpi")
-
-    img = ImageOps.exif_transpose(img)
+    with Image.open(src) as im:
+        exif = im.info.get("exif")
+        icc = im.info.get("icc_profile")
+        dpi = im.info.get("dpi")
+        im.load()                       # 先解码，之后就可以关闭文件句柄
+        img = ImageOps.exif_transpose(im)
+        if img is im:                   # 无 EXIF 方向时 exif_transpose 返回原对象
+            img = im.copy()
     base = img.convert("RGBA")
     layer, xy = render_layer(base.size, spec)
     base.alpha_composite(layer, xy)

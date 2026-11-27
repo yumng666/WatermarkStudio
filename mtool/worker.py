@@ -95,6 +95,17 @@ class BatchWorker(QThread):
 
     # ---------------------------------------------------------------- run
     def run(self):
+        """线程入口：无论内部出什么错，都必须发出 done，否则界面会一直卡在“正在处理”。"""
+        ok = fail = 0
+        try:
+            ok, fail = self._process_all()
+        except Exception as exc:      # 建目录失败、磁盘满、权限等都是这里的
+            self.log.emit(f"[错误] 任务中断：{exc}")
+            fail += 1
+        finally:
+            self.done.emit(ok, fail)
+
+    def _process_all(self) -> tuple[int, int]:
         ok = fail = 0
         total = len(self.files)
         Path(self.out_dir).mkdir(parents=True, exist_ok=True)
@@ -149,7 +160,7 @@ class BatchWorker(QThread):
                 self.log.emit(f"[错误] {Path(src).name}: {exc}")
                 fail += 1
 
-        self.done.emit(ok, fail)
+        return ok, fail
 
     # ---------------------------------------------------------------- helpers
     def _run(self, info: MediaInfo, args: list[str], idx: int, total: int,

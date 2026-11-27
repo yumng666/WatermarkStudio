@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 from pathlib import Path
 
 from PySide6.QtCore import QSize, Qt, QTimer, Signal
@@ -165,6 +166,7 @@ class FileQueue(QListWidget):
     def show_placeholder(self, text: str):
         if self.count():
             return
+        self._ph = None
         it = QListWidgetItem(text)
         it.setFlags(Qt.NoItemFlags)
         it.setForeground(QColor("#5b6472"))
@@ -174,11 +176,20 @@ class FileQueue(QListWidget):
 
     def clear_placeholder(self):
         ph = getattr(self, "_ph", None)
-        if ph is not None:
+        self._ph = None
+        if ph is None:
+            return
+        try:
             row = self.row(ph)
-            if row >= 0:
-                self.takeItem(row)
-            self._ph = None
+        except RuntimeError:      # 占位项已被 C++ 侧清理（例如 queue.clear()）
+            return
+        if row >= 0:
+            self.takeItem(row)
+
+    def clear_all(self):
+        """清空队列，同时丢弃占位项引用，避免悬空指针。"""
+        self.clear()
+        self._ph = None
 
 
 class WatermarkPanel(QWidget):
@@ -473,8 +484,14 @@ class MainWindow(QMainWindow):
         self.worker: BatchWorker | None = None
         self.mode = "image_wm"
         self.folder_roots: list[str] = []   # 用户拖入/选择的文件夹（用于还原目录层级）
+        self._busy = False                  # 是否有一批任务在跑（用于看门狗自愈）
+        self._busy_since = 0.0
 
         self.setWindowTitle(f"水印工坊 {__version__} · 批量水印与 GIF 转换")
+        self._watchdog = QTimer(self)
+        self._watchdog.setInterval(2000)
+        self._watchdog.timeout.connect(self._watch_dog)
+        self._watchdog.start()
         icon = resource_path("assets/icon.png")
         if icon.exists():
             self.setWindowIcon(QIcon(str(icon)))
@@ -623,6 +640,7 @@ class MainWindow(QMainWindow):
         self.log_view = QPlainTextEdit()
         self.log_view.setReadOnly(True)
         self.log_view.setFixedHeight(74)
+        self.log_view.setMaximumBlockCount(600)   # 长时间使用不让日志无限膨胀
         self.log_view.setPlaceholderText("这里会显示处理结果与错误信息")
         vl.addWidget(self.log_view)
         v.addWidget(box_log)
@@ -793,16 +811,17 @@ class MainWindow(QMainWindow):
             self._add_paths([d])
 
     def _clear(self):
-        self.queue.clear()
+        self.queue.clear_all()
         self.folder_roots.clear()
         self._update_queue_info()
 
     def _update_queue_info(self, extra: str = ""):
-        if self.queue.paths():
+        paths = self.queue.paths()
+        if paths:
             self.queue.clear_placeholder()
         else:
             self.queue.show_placeholder("把文件或整个文件夹拖到这里\n或点击下方「添加文件」")
-        n = len(self.queue.paths())
+        n = len(paths)
         kind = {"video_wm": "视频", "image_wm": "图片", "gif": "视频"}[self.mode]
         text = f"共 {n} 个{kind}文件" if n else "拖入文件或文件夹，支持批量"
         if n and self.folder_roots and self.mode == "image_wm":
@@ -872,34 +891,66 @@ class MainWindow(QMainWindow):
         self._save_cfg()
         self.log_view.clear()
         self.progress.setValue(0)
+        self._busy = True
+        self._busy_since = time.monotonic()
         self.start_btn.setEnabled(False)
         self.cancel_btn.setEnabled(True)
         self.status.setText("正在处理…")
         for i in range(self.queue.count()):
-            self.queue.item(i).setForeground(QColor("#d7dce6"))
+            item = self.queue.item(i)
+            item.setForeground(QColor("#d7dce6"))
+            item.setText(Path(item.data(Qt.UserRole)).name)
 
         norms = {os.path.normcase(str(Path(f).resolve())) for f in files}
         active_roots = [
             r for r in self.folder_roots
             if any(os.path.normcase(n).startswith(os.path.normcase(str(Path(r))) + os.sep) for n in norms)
         ]
-        self.worker = BatchWorker(
-            self.mode, files, out_dir, spec, self.gif_panel.value(),
-            self.ffmpeg, self.ffprobe, self, image_format=self.wm_panel.output_format(),
-            roots=active_roots,
-        )
-        self.worker.file_started.connect(self._on_file_start)
-        self.worker.progress.connect(lambda p: self.progress.setValue(int(p * 100)))
-        self.worker.file_done.connect(self._on_file_done)
-        self.worker.log.connect(lambda s: self.log_view.appendPlainText(s))
-        self.worker.done.connect(self._on_all_done)
-        self.worker.start()
+        try:
+            worker = BatchWorker(
+                self.mode, files, out_dir, spec, self.gif_panel.value(),
+                self.ffmpeg, self.ffprobe, self, image_format=self.wm_panel.output_format(),
+                roots=active_roots,
+            )
+            worker.file_started.connect(self._on_file_start)
+            worker.progress.connect(lambda p: self.progress.setValue(int(p * 100)))
+            worker.file_done.connect(self._on_file_done)
+            worker.log.connect(lambda s: self.log_view.appendPlainText(s))
+            worker.done.connect(self._on_all_done)
+            worker.finished.connect(worker.deleteLater)   # 长会话下别堆积线程对象
+            self.worker = worker
+            worker.start()
+        except Exception as exc:
+            self.worker = None
+            self._reset_idle("启动失败")
+            self.log_view.appendPlainText(f"[错误] 启动任务失败：{exc}")
+            QMessageBox.warning(self, "启动失败", str(exc))
 
     def _cancel(self):
-        if self.worker:
+        if self.worker and self.worker.isRunning():
             self.worker.cancel()
             self.status.setText("正在取消…")
             self.cancel_btn.setEnabled(False)
+        else:
+            self._reset_idle("已取消")
+
+    # ---------------------------------------------------------------- 自愈
+    def _reset_idle(self, text: str = "就绪"):
+        self._busy = False
+        self.start_btn.setEnabled(True)
+        self.cancel_btn.setEnabled(False)
+        self.status.setText(text)
+
+    def _watch_dog(self):
+        """线程已结束但界面还停在“正在处理”时自动复位，避免开始按钮永久变灰。"""
+        if not self._busy:
+            return
+        if self.worker is not None and self.worker.isRunning():
+            return
+        if time.monotonic() - self._busy_since < 2.0:
+            return
+        self._reset_idle("任务已结束（界面已自动复位）")
+        self.log_view.appendPlainText("[提示] 任务线程已结束但界面未复位，已自动恢复。")
 
     def _on_file_start(self, idx: int, name: str):
         self.status.setText(f"正在处理：{name}")
@@ -914,12 +965,14 @@ class MainWindow(QMainWindow):
             item.setToolTip(msg)
 
     def _on_all_done(self, ok: int, fail: int):
+        self._busy = False
         self.start_btn.setEnabled(True)
         self.cancel_btn.setEnabled(False)
         self.progress.setValue(100 if fail == 0 and ok > 0 else self.progress.value())
         text = f"完成：成功 {ok} 个" + (f"，失败 {fail} 个" if fail else "")
         self.status.setText(text)
         self.log_view.appendPlainText(text)
+        self.worker = None
         if ok and self.open_check.isChecked():
             QDesktopServices.openUrl(QUrl.fromLocalFile(self.out_edit.text().strip()))
 

@@ -205,6 +205,12 @@ def run_ffmpeg(
         except Exception:
             proc.kill()
         t.join(timeout=5)
+        for pipe in (proc.stdout, proc.stderr):
+            try:
+                if pipe:
+                    pipe.close()
+            except Exception:
+                pass
 
     ok = proc.returncode == 0 and not cancelled
     return RunResult(ok=ok, code=proc.returncode or 0, stderr="\n".join(tail), cancelled=cancelled)
